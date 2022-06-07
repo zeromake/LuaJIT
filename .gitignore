@@ -9,3 +9,8 @@
 *.dmp
 *.swp
 .tags
+build/
+.xmake/
+.vscode/
+vsxmake*/
+vs*/

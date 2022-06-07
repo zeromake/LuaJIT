@@ -103,13 +103,13 @@ static const char *sym_decorate(BuildCtx *ctx,
 #elif LJ_TARGET_XBOX360
   const char *symprefix = "";
 #else
-  const char *symprefix = ctx->mode != BUILD_elfasm ? "_" : "";
+  const char *symprefix = ctx->mode == BUILD_elfasm ? "" : "_";
 #endif
   sprintf(name, "%s%s%s", symprefix, prefix, suffix);
   p = strchr(name, '@');
   if (p) {
 #if LJ_TARGET_X86ORX64
-    if (!LJ_64 && (ctx->mode == BUILD_coffasm || ctx->mode == BUILD_peobj))
+    if (!LJ_64 && (ctx->mode == BUILD_coffasm || ctx->mode == BUILD_peobj || ctx->mode == BUILD_nasm))
       name[0] = name[1] == 'R' ? '_' : '@';  /* Just for _RtlUnwind@16. */
     else
       *p = '\0';
@@ -475,6 +475,7 @@ int main(int argc, char **argv)
   case BUILD_elfasm:
   case BUILD_coffasm:
   case BUILD_machasm:
+  case BUILD_nasm:
     emit_asm(ctx);
     emit_asm_debug(ctx);
     break;
