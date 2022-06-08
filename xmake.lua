@@ -1,10 +1,8 @@
 add_rules("mode.debug", "mode.release")
 
-local isMingw = false
-set_arch("x86")
--- add_rules("c.unity_build")
--- add_rules("c++.unity_build")
--- add_cxflags("-march=i686 -msse -msse2 -mfpmath=sse", {force = true})
+local isMingw = true
+local useAsm = true
+-- set_arch("x86")
 
 option("unicode")
     set_default(false)
@@ -78,20 +76,8 @@ local ALL_LIB = {
     "src/lib_buffer.c"
 }
 
-function generateVm(target) 
-    for _, args in ipairs({
-        -- {
-        --     "-m",
-        --     "peobj",
-        --     "-o",
-        --     "src/lj_vm.obj"
-        -- },
-        {
-            "-m",
-            "nasm",
-            "-o",
-            "src/lj_vm.asm"
-        },
+function generateVm(target)
+    local arr = {
         table.join({
             "-m",
             "bcdef",
@@ -129,7 +115,23 @@ function generateVm(target)
             "src/lj_folddef.h",
             "src/lj_opt_fold.c"
         }
-    }) do
+    }
+    if (useAsm) then
+        table.insert(arr, {
+            "-m",
+            "nasm",
+            "-o",
+            "src/lj_vm.asm"
+        })
+    else
+        table.insert(arr, {
+            "-m",
+            "peobj",
+            "-o",
+            "src/lj_vm.obj"
+        })
+    end
+    for _, args in ipairs(arr) do
         os.runv(target:targetdir().."/buildvm", args)
     end
     print("generate buildvm")
@@ -142,9 +144,12 @@ target("luajit")
     add_includedirs("src")
     add_files("src/lj_*.c", "src/lib_*.c")
     add_files("src/luajit.c")
-    add_files("src/lj_vm.asm")
-    set_toolset("as", "nasm")
-    -- add_files("src/lj_vm.obj")
+    if (useAsm) then
+        add_files("src/lj_vm.asm")
+        set_toolset("as", "nasm")
+    else
+        add_files("src/lj_vm.obj")
+    end
     add_defines(
         "_CRT_SECURE_NO_DEPRECATE",
         "_CRT_STDIO_INLINE=__declspec(dllexport)__inline"
@@ -156,9 +161,12 @@ target("lua")
     add_options("utf8", "unicode")
     add_includedirs("src")
     add_files("src/lj_*.c", "src/lib_*.c")
-    set_toolset("as", "nasm")
-    add_files("src/lj_vm.asm")
-    -- add_files("src/lj_vm.obj")
+    if (useAsm) then
+        add_files("src/lj_vm.asm")
+        set_toolset("as", "nasm")
+    else
+        add_files("src/lj_vm.obj")
+    end
     add_defines(
         "_CRT_SECURE_NO_DEPRECATE",
         "_CRT_STDIO_INLINE=__declspec(dllexport)__inline"

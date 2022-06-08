@@ -16,13 +16,13 @@ static void emit_asm_bytes(BuildCtx *ctx, uint8_t *p, int n)
   for (i = 0; i < n; i++) {
       if ((i & 15) == 0) {
         if (ctx->mode != BUILD_nasm) {
-          fprintf(ctx->fp, "\t.byte %d", p[i]);
+          fprintf(ctx->fp, "\t.byte 0x%x", p[i]);
         } else {
-          fprintf(ctx->fp, "\tdb %d", p[i]);
+          fprintf(ctx->fp, "\tdb 0x%x", p[i]);
         }
       }
       else
-        fprintf(ctx->fp, ",%d", p[i]);
+        fprintf(ctx->fp, ",0x%x", p[i]);
       if ((i & 15) == 15) putc('\n', ctx->fp);
   }
   if ((n & 15) != 0) putc('\n', ctx->fp);
@@ -46,8 +46,14 @@ static void emit_asm_reloc(BuildCtx *ctx, int type, const char *sym)
       fprintf(ctx->fp, "\t.long %s\n", sym);
     break;
   case BUILD_nasm:
-    fprintf(ctx->fp, "\textern %s\n", sym);
-    fprintf(ctx->fp, "\tdq %s\n", sym);
+    char* op = "dq";
+    if (LJ_32) {
+      op = "dd";
+    }
+    if (type)
+      fprintf(ctx->fp, "\t%s %s-.-4\n", op, sym);
+    else
+      fprintf(ctx->fp, "\t%s %s\n", op, sym);
     break;
   default:  /* BUILD_machasm for relative relocations handled below. */
     fprintf(ctx->fp, "\t.long %s\n", sym);
@@ -93,9 +99,6 @@ err:
       fprintf(ctx->fp, "\t%s L%s$stub\n", opname, sym);
       return;
     }
-  }
-  if (ctx->mode == BUILD_nasm) {
-    fprintf(ctx->fp, "\textern %s\n", sym);
   }
   fprintf(ctx->fp, "\t%s %s\n", opname, sym);
 }
@@ -247,6 +250,9 @@ static void emit_asm_align(BuildCtx *ctx, int bits)
   case BUILD_machasm:
     fprintf(ctx->fp, "\t.align %d\n", bits);
     break;
+  case BUILD_nasm:
+    fprintf(ctx->fp, "\talign %d\n", bits);
+    break;
   default:
     break;
   }
@@ -262,10 +268,15 @@ void emit_asm(BuildCtx *ctx)
   if (ctx->mode != BUILD_nasm) {
     fprintf(ctx->fp, "\t.file \"buildvm_%s.dasc\"\n", ctx->dasm_arch);
     fprintf(ctx->fp, "\t.text\n");
+    emit_asm_align(ctx, 4);
   } else {
-    // Todo extern
+    emit_asm_align(ctx, 4);
+    // extern
+    for (int index = 0; index < ctx->nrelocsym; index++) {
+      char* relocsym = ctx->relocsym[index];
+      fprintf(ctx->fp, "\textern %s\n", relocsym);
+    }
   }
-  emit_asm_align(ctx, 4);
 
 #if LJ_TARGET_PS3
   emit_asm_label(ctx, ctx->beginsym, ctx->codesz, 0);
