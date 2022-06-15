@@ -27,17 +27,37 @@ target("minilua")
     set_kind("binary")
     add_options("utf8", "unicode")
     add_files("src/host/minilua.c")
+    if (is_plat("macosx")) then
+        if (is_arch("x86")) then
+            add_defines("LUAJIT_TARGET=LUAJIT_ARCH_X86")
+        else
+            add_defines("LUAJIT_TARGET=LUAJIT_ARCH_X64")
+        end
+        add_defines("LJ_ARCH_HASFPU=1", "LJ_ABI_SOFTFP=0")
+    end
 
 target("buildvm")
     set_kind("binary")
     before_build(function (target)
         local args = {
             "dynasm/dynasm.lua",
-            "-LN",
-            "-D","WIN",
             "-D", "JIT",
             "-D", "FFI"
         }
+        if (is_plat("windows")) then
+            table.insert(args, "-LN")
+            table.insert(args, "-D")
+            table.insert(args, "WIN")
+        else
+            table.insert(args, "-D")
+            table.insert(args, "ENDIAN_LE")
+            table.insert(args, "-D")
+            table.insert(args, "FPU")
+            table.insert(args, "-D")
+            table.insert(args, "HFABI")
+            table.insert(args, "-D")
+            table.insert(args, "VER=")
+        end
 
         local dasc = nil
         if target:is_arch("x86") then
@@ -116,19 +136,36 @@ function generateVm(target)
             "src/lj_opt_fold.c"
         }
     }
-    if (useAsm) then
+    
+    if (is_plat("windows")) then
+        if (useAsm) then
+            table.insert(arr, {
+                "-m",
+                "nasm",
+                "-o",
+                "src/lj_vm.asm"
+            })
+        else
+            table.insert(arr, {
+                "-m",
+                "peobj",
+                "-o",
+                "src/lj_vm.obj"
+            })
+        end
+    elseif (is_plat("macosx")) then
         table.insert(arr, {
             "-m",
-            "nasm",
+            "machasm",
             "-o",
             "src/lj_vm.asm"
         })
     else
         table.insert(arr, {
             "-m",
-            "peobj",
+            "elfasm",
             "-o",
-            "src/lj_vm.obj"
+            "src/lj_vm.asm"
         })
     end
     for _, args in ipairs(arr) do
@@ -144,16 +181,26 @@ target("luajit")
     add_includedirs("src")
     add_files("src/lj_*.c", "src/lib_*.c")
     add_files("src/luajit.c")
-    if (useAsm) then
-        add_files("src/lj_vm.asm")
-        set_toolset("as", "nasm")
+    if (is_plat("windows")) then
+        if (useAsm) then
+            add_files("src/lj_vm.asm")
+            set_toolset("as", "nasm")
+        else
+            add_files("src/lj_vm.obj")
+        end
     else
-        add_files("src/lj_vm.obj")
+        add_files("src/lj_vm.asm")
     end
-    add_defines(
-        "_CRT_SECURE_NO_DEPRECATE",
-        "_CRT_STDIO_INLINE=__declspec(dllexport)__inline"
-    )
+    if (is_plat("windows")) then
+        add_defines(
+            "_CRT_SECURE_NO_DEPRECATE",
+            "_CRT_STDIO_INLINE=__declspec(dllexport)__inline"
+        )
+    elseif (is_plat("macosx")) then
+        add_defines("LUAJIT_OS=LUAJIT_OS_OSX")
+        add_defines("LUAJIT_UNWIND_EXTERNAL", "_LARGEFILE_SOURCE", "_FILE_OFFSET_BITS=64")
+        add_undefines("_FORTIFY_SOURCE")
+    end
     -- add_defines("LUA_BUILD_AS_DLL")
 target("lua")
     set_kind("shared")
@@ -161,11 +208,15 @@ target("lua")
     add_options("utf8", "unicode")
     add_includedirs("src")
     add_files("src/lj_*.c", "src/lib_*.c")
-    if (useAsm) then
-        add_files("src/lj_vm.asm")
-        set_toolset("as", "nasm")
+    if (is_plat("windows")) then
+        if (useAsm) then
+            add_files("src/lj_vm.asm")
+            set_toolset("as", "nasm")
+        else
+            add_files("src/lj_vm.obj")
+        end
     else
-        add_files("src/lj_vm.obj")
+        add_files("src/lj_vm.asm")
     end
     add_defines(
         "_CRT_SECURE_NO_DEPRECATE",

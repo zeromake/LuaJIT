@@ -31,6 +31,7 @@ static void emit_asm_bytes(BuildCtx *ctx, uint8_t *p, int n)
 /* Emit relocation */
 static void emit_asm_reloc(BuildCtx *ctx, int type, const char *sym)
 {
+  char* op = NULL;
   switch (ctx->mode) {
   case BUILD_elfasm:
     if (type)
@@ -46,7 +47,7 @@ static void emit_asm_reloc(BuildCtx *ctx, int type, const char *sym)
       fprintf(ctx->fp, "\t.long %s\n", sym);
     break;
   case BUILD_nasm:
-    char* op = "dq";
+    op = "dq";
     if (LJ_32) {
       op = "dd";
     }
