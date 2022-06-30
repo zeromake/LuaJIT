@@ -1,7 +1,7 @@
 add_rules("mode.debug", "mode.release")
 
-local isMingw = true
-local useAsm = true
+local isMingw = false
+local useAsm = false
 -- set_arch("x86")
 
 option("unicode")
@@ -208,6 +208,7 @@ target("lua")
     add_options("utf8", "unicode")
     add_includedirs("src")
     add_files("src/lj_*.c", "src/lib_*.c")
+    -- add_defines("LUA_BUILD_AS_DLL")
     if (is_plat("windows")) then
         if (useAsm) then
             add_files("src/lj_vm.asm")
@@ -218,7 +219,14 @@ target("lua")
     else
         add_files("src/lj_vm.asm")
     end
-    add_defines(
-        "_CRT_SECURE_NO_DEPRECATE",
-        "_CRT_STDIO_INLINE=__declspec(dllexport)__inline"
-    )
+    if (is_plat("windows")) then
+        add_defines(
+            "_CRT_SECURE_NO_DEPRECATE",
+            "_CRT_STDIO_INLINE=__declspec(dllexport)__inline"
+        )
+    elseif (is_plat("macosx")) then
+        add_defines("LUAJIT_OS=LUAJIT_OS_OSX")
+        add_defines("LUAJIT_UNWIND_EXTERNAL", "_LARGEFILE_SOURCE", "_FILE_OFFSET_BITS=64")
+        add_undefines("_FORTIFY_SOURCE")
+        add_ldflags("")
+    end
